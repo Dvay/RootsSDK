@@ -3,13 +3,8 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
-RootsSDK.sln
-RootsSDK.vcxproj
-RootsSDK.vcxproj.filters
-dllmain.cpp
-framework.h
-pch.cpp
-pch.h
+
+
 
 # User-specific files
 *.rsuser
@@ -369,3 +364,11 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+RootsSDK.sln
+/RootsSDK/RootsSDK.vcxproj
+/RootsSDK/RootsSDK.vcxproj.filters
+/RootsSDK/dllmain.cpp
+/RootsSDK/framework.h
+/RootsSDK/pch.cpp
+/RootsSDK/pch.h
