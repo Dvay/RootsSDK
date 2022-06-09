@@ -3,6 +3,14 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+RootsSDK.sln
+RootsSDK.vcxproj
+RootsSDK.vcxproj.filters
+dllmain.cpp
+framework.h
+pch.cpp
+pch.h
+
 # User-specific files
 *.rsuser
 *.suo
@@ -15,7 +23,7 @@
 
 # Mono auto generated files
 mono_crash.*
-
+ 
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/
