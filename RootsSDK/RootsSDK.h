@@ -4,7 +4,11 @@
 #include <windows.h>
 #include <functional> 
 #include <variant>
+#include <map>
 
+#include "imgui/imgui.h"
+#include "imgui/imgui_impl_win32.h"
+#include "imgui/imgui_impl_dx11.h"
 
 #ifdef EXPORTS_API
 #define ROOTS_API_EXPORT __declspec (dllexport)
@@ -13,7 +17,10 @@
 #endif
 
 //#define SHOW_IMAGES
+#define THREAD_SLEEP(x) {auto start = std::chrono::system_clock::now(); while (std::chrono::system_clock::now() < start + std::chrono::milliseconds(x)) std::this_thread::sleep_for(std::chrono::milliseconds(1)); }
 
+
+ 
 
 class vector2 {
 
@@ -23,6 +30,14 @@ public:
 	vector2(int x, int y) : x(x), y(y) {}
 	int x;
 	int y;
+
+	bool operator==(const vector2& o) const {
+		return x == o.x && y == o.y;
+	}
+
+	bool operator<(const vector2& o) const {
+		return x < o.x || (x == o.x && y < o.y);
+	}
 
 };
 
@@ -246,21 +261,16 @@ public:
 	NUMBER num_ar2;
 	NUMBER num_ar3;
 
-	NUMBER num_current_life1;
-	NUMBER num_current_life2;
-	NUMBER num_current_life3;
-	NUMBER num_current_life4;
-	int current_life_left_shift1_x;
-	int current_life_left_shift1_y;
-	int current_life_left_shift1_offset;
-	int current_life_left_shift2_x;
-	int current_life_left_shift2_y;
-	int current_life_left_shift2_offset;
+	int life_mana_number_distance;
+	int life_mana_curr_max_distance;
+	int life_mana_shift_initi_distance;
+	int life_mana_shift_initi_distance_max;
+	int life_mana_number_width;
+	int life_mana_number_height;
+	vector2 life_shift_position;
+	vector2 mana_shift_position;
 
-	NUMBER num_max_life1;
-	NUMBER num_max_life2;
-	NUMBER num_max_life3;
-	NUMBER num_max_life4;
+
 
 	NUMBER num_current_level;
 	LEVEL_HASHS LEVEL_NUMBER_HASHS;
@@ -273,6 +283,8 @@ public:
 	STATS_HASHS WHITE_NUMBER_HASHS;
 	//COLOR COLOR_WHITE_NUMBERS2 = { 0,0,0,0 };
 
+	std::string life_mana_devider_hash;
+	std::vector<std::string> life_mana_number_hashs;
 
 	COLOR COLOR_ATTACK_RANGE_CIRCLE = COLOR(0, 0, 0);
 
@@ -284,6 +296,12 @@ public:
 	int SPELL_LEVEL_Y;
 	int SPELL_LEVEL_DIST;
 	int SPELL_LEVEL_DIST_BETWEEN_DOTS;
+
+	std::map<vector2, int> Q_levels;
+	std::map<vector2, int> W_levels;
+	std::map<vector2, int> E_levels;
+	std::map<vector2, int> R_levels;
+
 	COLOR_BASE() {};
 
 	ENTITY_PROPERTIES ENEMY_HERO_MAIN;
@@ -335,7 +353,7 @@ public:
 
 enum class  STATE {
 	NONE,
-	FIGHT,
+	COMBO,
 	POKE,
 	LANECLEAR
 };
@@ -347,7 +365,7 @@ private:
 public:
 
 	virtual void addWindupTime(int windup) = 0;
-	virtual bool fight_mode() = 0;
+	virtual bool combo_mode() = 0;
 	virtual bool poke_mode() = 0;
 	virtual bool laneclear_mode() = 0;
 	virtual bool none_mode() = 0;
@@ -374,11 +392,11 @@ enum class ENTITY_TYPE {
 
 class entity_instance {
 
-private:
-	std::string champion_name = "";
-	vector2 position;
+//private:
+	//std::string champion_name = "";
+	//vector2 position;
 public:
-
+	virtual ~entity_instance() = default;
 	virtual std::string get_name() = 0;
 	virtual void set_name(std::string name) = 0;
 	virtual vector2& get_position() = 0;
@@ -403,10 +421,13 @@ class localplayer_instance {
 public:
 	virtual ~localplayer_instance() = default;
 
+	virtual double get_wind_up() = 0;
 	virtual bool can_attack() = 0;
 	//virtual bool is_in_autoattack_range(entity* to)
+	virtual void add_auto_attack_reset_time(int milliseconds) = 0;
 	virtual bool inRange(entity_instance* to, float range = 0) = 0;
 	virtual void auto_attack(entity_instance* to, bool* process_auto_attack) = 0;
+	virtual void attack_move(vector2* to) = 0;
 	virtual float get_attackspeed() = 0;
 	virtual void set_attackspeed(float aspeed) = 0;
 	virtual float get_attack_range() = 0;
@@ -420,8 +441,10 @@ public:
 	virtual float& get_health_absolute() = 0;
 	virtual void set_health_absolute(float health) = 0;
 	virtual void set_health_percent(float health) = 0;
-	virtual float get_mana() = 0;
-	virtual void set_mana(float mana) = 0;
+	virtual float get_mana_absolute() = 0;
+	virtual float get_mana_percent() = 0;
+	virtual void set_mana_absolute(float mana) = 0;
+	virtual void set_mana_percent(float mana) = 0;
 	virtual ENTITY_TYPE& get_type() = 0;
 	virtual void set_type(ENTITY_TYPE type) = 0;
 	virtual COLOR& get_color() = 0;
@@ -551,12 +574,12 @@ public:
 struct sKEY {
 
 	int INVALID = 0x0;
-	int FIGHT = VK_SPACE;
+	int COMBO = VK_SPACE;
 	int LANECLEAR = 0x54;
 	int LASTHIT = 0x58;
 	int POKE = 0x56;
 	int ATTACK_MOVE = 0x7A; // Player AttackMove
-	int MENU = VK_SHIFT; //menu
+	int MENU = VK_F6; //menu
 
 	int SHOW_RANGE = 0x43; // AA Advanced Player Stats
 	int LOCK_CAMERA = 0x5A; //LOCK Camera (toggle)
@@ -588,7 +611,7 @@ struct ssummoner {
 	bool use_BARRIER = false;
 };
 
-struct sfight {
+struct sCOMBO {
 	bool use_Q = false;
 	bool use_W = false;
 	bool use_E = false;
@@ -613,10 +636,11 @@ class settings_instance
 {
 
 public:
-	 int input_delay;
+	bool multi_core = true;
+	 int input_delay = 10;
 	 sKEY KEY;
 	 ssummoner summoner;
-	 sfight fight;
+	 sCOMBO combo;
 	 slaneclear laneclear;
 	 spoke poke;
 };
@@ -632,6 +656,8 @@ public:
 	targetselector_instance* targetselector = nullptr;
 	spell_manager* spellmanager = nullptr;
 	sdk_manager* sdk = nullptr;
+	ImGuiContext* imgui_ctx = nullptr;
+
 };
 
 
@@ -641,6 +667,9 @@ extern localplayer_instance* myhero;
 extern orbwalker_instance* orbwalker;
 extern targetselector_instance* targetselector;
 extern sdk_manager* sdk;
+extern ImGuiContext* imgui_ctx;
+
+
 
 extern "C" {
 
@@ -649,6 +678,7 @@ extern "C" {
 	ROOTS_API_EXPORT void on_update();
 	ROOTS_API_EXPORT void on_before_attack(entity_instance* target, bool* process_autoattack);
 	ROOTS_API_EXPORT void on_after_attack();
+	ROOTS_API_EXPORT void on_menu_draw();
 
 
 }
